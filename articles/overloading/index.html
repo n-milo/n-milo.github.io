@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>C Has Overloading, Actually | nikola&#39;s website</title>
+	<link rel="canonical" href="https://nmilo.net/">
+	<link rel='alternate' type='application/rss+xml' title="nikola&#39;s website RSS" href='/index.xml'>
+	<link rel='stylesheet' type='text/css' href='/style.css'>
+	<link rel="icon" href="/favicon.ico">
+	<meta name="description" content="Function overloading is a feature added by C&#43;&#43; which is occasionally very useful. I&rsquo;m not too sure if it&rsquo;s worth the extra complexity—name mangling is can get very annoying sometimes—but every now and then overloading is a great feature to have. Today I wanted to show you two tricks to pretty much completely emulate C&#43;&#43; overloading
+Type-based overloading C11 adds the _Generic keyword and type-generic expressions, which may make it seem like C has generics, but not really.">
+	<meta name="keywords" content="programming, c">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="index, follow">
+	<meta charset="utf-8">
+</head>
+<body>
+<main>
+<header>
+<center><a href="https://nmilo.net/">home</a></center>
+<hr>
+	<center>
+<h1>C has overloading, actually</h1>
+<div style="clear:both" class=taglist><a id="tag_programming" href="https://nmilo.net/tags/programming">#programming</a> &middot; <a id="tag_c" href="https://nmilo.net/tags/c">#c</a></div>
+<div>December 28nd, 2023</div>
+		<div>4 minute read</div>
+	</center>
+</header>
+<article>
+<p><a href="https://en.wikipedia.org/wiki/Function_overloading">Function overloading</a> is a feature added by C++ which is occasionally very useful. I&rsquo;m not too sure if it&rsquo;s worth the extra complexity—name mangling is can get very annoying sometimes—but every now and then overloading is a great feature to have. Today I wanted to show you two tricks to pretty much completely emulate C++ overloading</p>
+<h2 id="type-based-overloading">Type-based overloading</h2>
+<p>C11 adds the <code>_Generic</code> keyword and <a href="https://en.cppreference.com/w/c/language/generic">type-generic expressions</a>, which may make it seem like C has generics, but not really. It&rsquo;s more like a type-based switch statement, added to the language exclusively to implement the functions in <a href="https://en.cppreference.com/w/c/numeric/tgmath"><code>&lt;tgmath.h&gt;</code></a>.</p>
+<p>Generic expressions look like:</p>
+<blockquote>
+<p><code>_Generic ( </code>controlling-expression<code>,</code>association-list<code> )</code>.</p>
+</blockquote>
+<p>Where &ldquo;controlling-expression&rdquo; is an expression and &ldquo;association-list&rdquo; is a list of type to expression pairs. For example:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> foo <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5</span>;
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">const</span> <span style="color:#458;font-weight:bold">char</span> <span style="color:#000;font-weight:bold">*</span>foos_type <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">_Generic</span>(foo,
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">int</span><span style="color:#000;font-weight:bold">:</span> <span style="color:#d14">&#34;it&#39;s an int&#34;</span>,
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">float</span><span style="color:#000;font-weight:bold">:</span> <span style="color:#d14">&#34;it&#39;s a float&#34;</span>,
+</span></span><span style="display:flex;"><span>	<span style="color:#000;font-weight:bold">default</span><span style="color:#000;font-weight:bold">:</span> <span style="color:#d14">&#34;idk&#34;</span>);
+</span></span></code></pre></div><p>Here the <code>_Generic</code> expression acts like a switch statement on the type of <code>foo</code> and can give us different results based on what type <code>foo</code> is. One limitation is that each type expression has to be semantically valid, which can be <a href="https://www.chiark.greenend.org.uk/~sgtatham/quasiblog/c11-generic/">regarded as an oversight</a>, but largely doesn&rsquo;t affect us here.</p>
+<p>If, before <code>_Generic</code>, you would write this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">draw_circle</span>(Circle circle) { ... }
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">draw_rectangle</span>(Rectangle rectangle) { ... }
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">draw_point</span>(Vector2 point) { ... }
+</span></span></code></pre></div><p>you can now use a macro to switch between function choices.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">#define draw(obj) _Generic(obj,  \
+</span></span></span><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">	Circle: draw_circle,         \
+</span></span></span><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">	Rectangle: draw_rectangle,   \
+</span></span></span><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">	Vector2: draw_point          \
+</span></span></span><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">)(obj)
+</span></span></span><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic"></span>
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>	Circle c <span style="color:#000;font-weight:bold">=</span> { .radius <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">5.0f</span>; };
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">draw</span>(c);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	Rectangle r <span style="color:#000;font-weight:bold">=</span> { .w <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">1</span>, .h <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">2</span> };
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">draw</span>(r);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	Vector2 v <span style="color:#000;font-weight:bold">=</span> { <span style="color:#099">3</span>, <span style="color:#099">4</span> };
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">draw</span>(v);
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><h2 id="number-of-argumentsbased-overloading">Number-of-arguments–based overloading</h2>
+<p>Okay, that one was easy, we&rsquo;re just using a C11 feature for entirely it&rsquo;s intended purpose. Something more useful would be overloading based on the number of arguments passed. C libraries often need to specify somewhere in their name how many arguments they take, or their type (for example, from <a href="https://www.raylib.com/cheatsheet/cheatsheet.html">raylib</a>):</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">DrawPixel</span>(<span style="color:#458;font-weight:bold">int</span> posX, <span style="color:#458;font-weight:bold">int</span> posY, Color color); <span style="color:#998;font-style:italic">// Draw a pixel
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">DrawPixelV</span>(Vector2 position, Color color);  <span style="color:#998;font-style:italic">// Draw a pixel (Vector version)
+</span></span></span></code></pre></div><p>It would be nice if we could call both of these with just <code>DrawPixel(...)</code>. That way if we ever change to passing a vector, we only need to change one thing. Luckily, with some macro magic, we can. First we&rsquo;ll name our 2 &ldquo;overloads&rdquo; by the number of arguments they take:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">DrawPixel2</span>(Vector2 position, Color color);  <span style="color:#998;font-style:italic">// Draw a pixel (Vector version)
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">DrawPixel3</span>(<span style="color:#458;font-weight:bold">int</span> posX, <span style="color:#458;font-weight:bold">int</span> posY, Color color); <span style="color:#998;font-style:italic">// Draw a pixel
+</span></span></span></code></pre></div><p>Then we can define a macro that always expands to its 4th argument.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">#define DrawPixelX(a,b,c,d,...)   d
+</span></span></span></code></pre></div><p>Finally, this macro expands its arguments into <code>DrawPixelX</code>, followed by the function names <code>DrawPixel3</code> and <code>DrawPixel2</code>.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#999;font-weight:bold;font-style:italic">#define DrawPixel(...)   DrawPixelX(__VA_ARGS__,DrawPixel3,DrawPixel2)(__VA_ARGS__)
+</span></span></span></code></pre></div><p>If we give it 2 arguments, it expands like this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">DrawPixel</span>(v, WHITE)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-&gt;</span> <span style="color:#900;font-weight:bold">DrawPixelX</span>(v, WHITE, DrawPixel3,DrawPixel2)(v, WHITE) <span style="color:#998;font-style:italic">// expands to 4th argument
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">-&gt;</span> <span style="color:#900;font-weight:bold">DrawPixel2</span>(v, WHTIE)
+</span></span></code></pre></div><p>and for 3,</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#900;font-weight:bold">DrawPixel</span>(<span style="color:#099">1</span>, <span style="color:#099">2</span>, WHITE)
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">-&gt;</span> <span style="color:#900;font-weight:bold">DrawPixelX</span>(<span style="color:#099">1</span>, <span style="color:#099">2</span>, WHITE, DrawPixel3,DrawPixel2)(<span style="color:#099">1</span>, <span style="color:#099">2</span> WHITE) <span style="color:#998;font-style:italic">// expands to 4th argument
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span><span style="color:#000;font-weight:bold">-&gt;</span> <span style="color:#900;font-weight:bold">DrawPixel3</span>(<span style="color:#099">1</span>, <span style="color:#099">2</span>, WHTIE)
+</span></span></code></pre></div><p>The trick is that by having <code>DrawPixelX</code> always expand to its fourth argument, we can &ldquo;push&rdquo; the function we want forwards by the amount of arguments we pass in.</p>
+<h2 id="are-these-macro-hacks-really-a-good-idea">Are these macro hacks really a good idea?</h2>
+<p>I don&rsquo;t know about real projects, but C macros (especially with C11 and C23) are a lot more powerful than many give credit for. Using the tricks above, plus some other hacks, we can even make a <a href="https://github.com/n-milo/cfmt">type-safe printf function</a>:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    Vec3 v <span style="color:#000;font-weight:bold">=</span> {<span style="color:#099">1</span>, <span style="color:#099">2.5</span>, <span style="color:#099">3</span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// regular printing
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#900;font-weight:bold">PRINT</span>(<span style="color:#d14">&#34;%; %; %; %; %</span><span style="color:#d14">\n</span><span style="color:#d14">&#34;</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">+</span><span style="color:#099">2</span>, <span style="color:#d14">&#34;Hello world&#34;</span>, (<span style="color:#458;font-weight:bold">void</span><span style="color:#000;font-weight:bold">*</span>)<span style="color:#099">0xbeefbabe</span>, v, <span style="color:#900;font-weight:bold">sinf</span>(M_PI_4));
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// -&gt; &#34;3; Hello world; 0xbeefbabe; {1, 2.5, 3}; 0.707107&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// missing arguments
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#900;font-weight:bold">PRINT</span>(<span style="color:#d14">&#34;% + % = %</span><span style="color:#d14">\n</span><span style="color:#d14">&#34;</span>, <span style="color:#099">1</span>, <span style="color:#099">2</span>);
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// -&gt; &#34;1 + 2 = %!MISSING&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// extra arguments
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#900;font-weight:bold">PRINT</span>(<span style="color:#d14">&#34;hi&#34;</span>, <span style="color:#099">1</span><span style="color:#000;font-weight:bold">+</span><span style="color:#099">2</span>, <span style="color:#d14">&#34;Hello world&#34;</span>, (<span style="color:#458;font-weight:bold">void</span><span style="color:#000;font-weight:bold">*</span>)<span style="color:#099">0xbeefbabe</span>, v, <span style="color:#900;font-weight:bold">sinf</span>(M_PI_4));
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// -&gt; &#34;hi%!(EXTRA int=3, char*=Hello world, void*=0xbeefbabe, Vec3={1, 2.5, 3}, float=0.707107)&#34;
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// unknown type compile error
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#000;font-weight:bold">struct</span> foo {} f;
+</span></span><span style="display:flex;"><span>    <span style="color:#998;font-style:italic">// PRINT(&#34;%&#34;, f);
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    <span style="color:#998;font-style:italic">// -&gt; error: controlling expression type &#39;struct foo&#39; not compatible with any generic association type
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre></div><hr>
+<div class="nextprev">
+<a href="/articles/qctf/"><div class="prevart">&lt;&lt;&lt; prev<br>QCTF experience and write-up</div></a>
+</div>
+</main>
+<footer>
+	<a href="https://nmilo.net/">home</a><br><br>
+	<a href="/index.xml"><img src="/rss.svg" style="max-height:1.5em" alt="RSS Feed" title="Subscribe via RSS for updates."></a>
+</footer>
+</body>
+</html>
+

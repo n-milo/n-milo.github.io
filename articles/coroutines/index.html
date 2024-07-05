@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>C&#43;&#43;20 Coroutines Explained Simply | nikola&#39;s website</title>
+	<link rel="canonical" href="https://nmilo.net/">
+	<link rel='alternate' type='application/rss+xml' title="nikola&#39;s website RSS" href='/index.xml'>
+	<link rel='stylesheet' type='text/css' href='/style.css'>
+	<link rel="icon" href="/favicon.ico">
+	<meta name="description" content="C&#43;&#43;20 brings coroutines to the language, and, like most things in C&#43;&#43;, they are almost unnecessarily powerful and difficult to understand. C&#43;&#43;20 also brings no standard coroutine-helper library, which means we have to write all the scheduling/handling code ourselves. Luckily, this gives us a great opportunity to understand how they work, so that when the libraries do come, we don&rsquo;t just view them as compiler black magic.
+What is a coroutine?">
+	<meta name="keywords" content="programming, c&#43;&#43;">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="index, follow">
+	<meta charset="utf-8">
+</head>
+<body>
+<main>
+<header>
+<center><a href="https://nmilo.net/">home</a></center>
+<hr>
+	<center>
+<h1>C&#43;&#43;20 coroutines explained simply</h1>
+<div style="clear:both" class=taglist><a id="tag_programming" href="https://nmilo.net/tags/programming">#programming</a> &middot; <a id="tag_c&#43;&#43;" href="https://nmilo.net/tags/c&#43;&#43;">#c&#43;&#43;</a></div>
+<div>May 12nd, 2022</div>
+		<div>8 minute read</div>
+	</center>
+</header>
+<article>
+<p>C++20 brings coroutines to the language, and, like most things in C++, they are almost unnecessarily powerful and difficult to understand. C++20 also brings no standard coroutine-helper library, which means we have to write all the scheduling/handling code ourselves. Luckily, this gives us a great opportunity to understand how they work, so that when the libraries do come, we don&rsquo;t just view them as compiler black magic.</p>
+<h2 id="what-is-a-coroutine">What is a coroutine?</h2>
+<p>A coroutine is a function that can suspend its execution, return to the caller, and then later be resumed. We can use them to implement async/await, generators, and other useful patterns. In C++, we can declare coroutine by writing a function with the <code>co_await</code>, <code>co_yield</code>, or <code>co_return</code> keywords anywhere in its body. For example, before even getting into implementation, let&rsquo;s look at a coroutine we may want to write:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span>Task <span style="color:#900;font-weight:bold">my_coroutine</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">int</span> result <span style="color:#000;font-weight:bold">=</span> <span style="color:#000;font-weight:bold">co_await</span> my_async_function();
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">co_yield</span> result <span style="color:#000;font-weight:bold">*</span> <span style="color:#099">2</span>;
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">co_return</span> result <span style="color:#000;font-weight:bold">+</span> <span style="color:#099">5</span>;
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    Task task <span style="color:#000;font-weight:bold">=</span> my_coroutine();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    app.go_do_other_work();
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    task.wait_until_ready();
+</span></span><span style="display:flex;"><span>    std<span style="color:#000;font-weight:bold">::</span>cout <span style="color:#000;font-weight:bold">&lt;&lt;</span> task.get_yielded_value() <span style="color:#000;font-weight:bold">&lt;&lt;</span> std<span style="color:#000;font-weight:bold">::</span>endl;
+</span></span><span style="display:flex;"><span>    task.resume();
+</span></span><span style="display:flex;"><span>    std<span style="color:#000;font-weight:bold">::</span>cout <span style="color:#000;font-weight:bold">&lt;&lt;</span> task.get_returned_value() <span style="color:#000;font-weight:bold">&lt;&lt;</span> std<span style="color:#000;font-weight:bold">::</span>endl;
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>What will we expect this coroutine to do? When we call <code>my_coroutine()</code>, it should ideally do the following:</p>
+<ol>
+<li>Go call <code>my_async_function</code>, which in theory does some asynchronous work like reading a file. The coroutine is paused while the asynchronous function waits and the calling code goes and does some other work.</li>
+<li>When <code>my_async_function</code> is ready, the coroutine will be resumed, yields some computation to be read from <code>task.get_yielded_value()</code>, and then pauses itself.</li>
+<li>When the task is later resumed, it will return some other computation, ready to be read by <code>task.get_returned_value()</code>.</li>
+</ol>
+<p>Cool! Unfortunately, C++20 comes with no standard coroutine library so we&rsquo;ll need to implement <em>all</em> that functionality ourselves.</p>
+<h2 id="basic-coroutines">Basic coroutines</h2>
+<p>A coroutine has a few important, distinct objects associated with it:</p>
+<ul>
+<li>the <em>return type</em>, which acts as the caller&rsquo;s interface to the coroutine. All it is really required to do is define a typedef so the compiler can find the promise type. But here we&rsquo;ll wrap all the coroutine logic behind it so all the caller is left with is a nice interface.</li>
+<li>the <em>promise_type</em>, which handles the logic for awaiting, yielding, and returning</li>
+<li>the <em>std::coroutine_handle</em>, which can be used to manipulate the coroutine from outside</li>
+<li>the <em>state</em>, which is a compiler internal and holds the state of the function&rsquo;s arguments and local variables, usually on the heap
+<ul>
+<li>remember: if we can arbitrarily suspend and resume a function, then everything inside that function leaves the traditional idea of the &ldquo;call stack&rdquo;, and we can make the function live for as long as we want! Therefore the compiler needs to move all the variables to the heap and manually track lifetimes.</li>
+</ul>
+</li>
+</ul>
+<p>Let&rsquo;s continue with the <code>my_coroutine</code> example created above. When the coroutine is created, by calling <code>my_coroutine()</code>, the compiler will do the following:</p>
+<ol>
+<li>Construct the promise type, as defined by <code>Task::promise_type</code></li>
+<li>Create the return object using <code>promise.get_return_object()</code></li>
+<li><code>co_await</code>&rsquo;s the <em>Awaitable</em> returned by <code>promise.initial_suspend()</code></li>
+<li>Execute!</li>
+<li><code>co_await</code>&rsquo;s the <em>Awaitable</em> returned by <code>promise.final_suspend()</code></li>
+<li>Destructs the promise.</li>
+</ol>
+<p>So already we have a few objects we need to define:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Task</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">promise_type</span> {
+</span></span><span style="display:flex;"><span>        Task <span style="color:#900;font-weight:bold">get_return_object</span>() { <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">unhandled_exception</span>() {} <span style="color:#998;font-style:italic">// called when we have an unhandled exception
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        MyAwaiter <span style="color:#900;font-weight:bold">initial_suspend</span>() <span style="color:#998;font-style:italic">// TODO
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>        MyAwaiter final_suspend() <span style="color:#000;font-weight:bold">noexcept</span> <span style="color:#998;font-style:italic">// TODO
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>What exactly is an <em>Awaitable</em> then? Essentially it is something that a coroutine can wait for; a socket with data to read, a file handle waiting for data to write, etc. But for the compiler, all that matters is that it is something that can be passed into <code>co_await</code>. When given something to <code>co_await</code>, the coroutine will:</p>
+<ol>
+<li>Check the boolean returned by <code>awaiter.await_ready()</code>; if <code>true</code> (the awaiter is ready), we don&rsquo;t wait, and skip step 2.</li>
+<li>Suspend the coroutine and call <code>awaiter.await_suspend(handle)</code>. It is now the awaiter&rsquo;s job to resume the coroutine using the handle, whenever the socket is ready or whatever. Ideally we would pass the handle to some kind of scheduling manager, which would resume the handle whenever the coroutine should be resumed.</li>
+<li>Call <code>awaiter.await_resume()</code> and gives its return value back to the coroutine as the value of the <code>co_await</code> expression.</li>
+</ol>
+<p>Given these requirements, let&rsquo;s write an awaiter to return from the <code>initial_suspend</code> function. Remember this will be awaited when the coroutine begins, but we don&rsquo;t need to wait on anything, so let&rsquo;s write an awaiter that is always ready.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">MyAwaiter</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">bool</span> <span style="color:#900;font-weight:bold">await_ready</span>() { <span style="color:#000;font-weight:bold">return</span> <span style="color:#0086b3">true</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">await_suspend</span>(std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">&lt;&gt;</span> handle) {}
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">await_resume</span>() {}
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>This never-suspending awaiter is so common it comes pre-defined as <code>std::suspend_never</code>. From now on we&rsquo;ll use the std class, but it&rsquo;s nice to know there&rsquo;s no std magic happening inside. There&rsquo;s also <code>std::suspend_always</code>, which always suspends the coroutine, forcing it to be manually resumed later.</p>
+<p>To write <code>my_async_function</code>, we could do some real asynchronous work, but for simplicity let&rsquo;s just make it immediately yield with the value <code>3</code>.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Awaiter2</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">bool</span> <span style="color:#900;font-weight:bold">await_ready</span>() { <span style="color:#000;font-weight:bold">return</span> <span style="color:#0086b3">true</span>; }
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">await_suspend</span>(std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">&lt;&gt;</span> handle) {}
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">await_resume</span>() { <span style="color:#000;font-weight:bold">return</span> <span style="color:#099">3</span>; }
+</span></span><span style="display:flex;"><span>};
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>Awaiter2 <span style="color:#900;font-weight:bold">my_async_function</span>() { <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span></code></pre></div><p>Now we&rsquo;re almost done, but if we try and compile now we get a few errors:</p>
+<pre tabindex="0"><code>error: no member named &#39;yield_value&#39; in &#39;promise_type&#39;
+    co_yield result * 2;
+    ^~~~~~~~
+error: no member named &#39;return_value&#39; in &#39;promise_type&#39;
+    co_return result + 5;
+    ^~~~~~~~~
+</code></pre><p>Of course, we haven&rsquo;t yet defined the behaviour when yielding or returning. The line <code>co_yield result * 2</code> is actually equivalent to <code>co_await promise.yield_value(result * 2)</code>. Typically we would store the yield value, then return a <code>std::suspend_always</code> to immediately suspend the coroutine. Let&rsquo;s store the yield value directly in the <code>promise_type</code> struct.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">promise_type</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">int</span> value;
+</span></span><span style="display:flex;"><span>        ...
+</span></span><span style="display:flex;"><span>        std<span style="color:#000;font-weight:bold">::</span>suspend_always yield_value(<span style="color:#458;font-weight:bold">int</span> val) { value <span style="color:#000;font-weight:bold">=</span> val; <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>    };
+</span></span></code></pre></div><p>Finally, we need a <code>return_value</code> function, which is called whenever we <code>co_return</code> a value from the coroutine. We&rsquo;ll just store the value again.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">promise_type</span> {
+</span></span><span style="display:flex;"><span>        ...
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">void</span> return_value(<span style="color:#458;font-weight:bold">int</span> value) { value <span style="color:#000;font-weight:bold">=</span> val; }
+</span></span><span style="display:flex;"><span>    };
+</span></span></code></pre></div><p>Now our code compiles! It won&rsquo;t do anything yet, so let&rsquo;s write a <code>main</code> to call this coroutine:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    Task task <span style="color:#000;font-weight:bold">=</span> my_coroutine(); <span style="color:#998;font-style:italic">// runs until the first suspension point; the co_yield
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    std<span style="color:#000;font-weight:bold">::</span>cout <span style="color:#000;font-weight:bold">&lt;&lt;</span> task.value() <span style="color:#000;font-weight:bold">&lt;&lt;</span> std<span style="color:#000;font-weight:bold">::</span>endl; <span style="color:#998;font-style:italic">// prints the value from the co_yield, aka 6
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    task.resume(); <span style="color:#998;font-style:italic">// the co_yield just suspended the coroutine
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>                   <span style="color:#998;font-style:italic">// resume it to run until the next suspension point
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>    std<span style="color:#000;font-weight:bold">::</span>cout <span style="color:#000;font-weight:bold">&lt;&lt;</span> task.value() <span style="color:#000;font-weight:bold">&lt;&lt;</span> std<span style="color:#000;font-weight:bold">::</span>endl; <span style="color:#998;font-style:italic">// prints the value from the co_return, aka 8
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>}
+</span></span></code></pre></div><p>We now need to write this interface in our <code>Task</code> class. First, we&rsquo;ll store an <code>std::coroutine_handle</code>, which will allow us to resume the coroutine and access the <code>Promise</code> type.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Task</span> {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>    std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">&lt;</span>promise_type<span style="color:#000;font-weight:bold">&gt;</span> handle;
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>Now when we construct the <code>Task</code> we must give it the handle:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">promise_type</span> {
+</span></span><span style="display:flex;"><span>        ...
+</span></span><span style="display:flex;"><span>        Task get_return_object() {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> { std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">::</span>from_promise<span style="color:#000;font-weight:bold">&lt;</span>promise_type<span style="color:#000;font-weight:bold">&gt;</span>(<span style="color:#000;font-weight:bold">*</span><span style="color:#000;font-weight:bold">this</span>) };
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>        ...
+</span></span><span style="display:flex;"><span>    };
+</span></span></code></pre></div><p>Now our <code>.value()</code> and <code>.resume()</code> functions are easy to write, because they essentially just wrap functionality the <code>std::coroutine_handle</code> gives us.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Task</span> {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">int</span> value() {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">return</span> handle.promise().value;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>    <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">resume</span>() {
+</span></span><span style="display:flex;"><span>        handle.resume();
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p><a href="https://godbolt.org/z/6zP9xTP51">Try the code here</a></p>
+<h2 id="a-simple-generator-iterator">A simple generator iterator</h2>
+<p>Anyone who writes Python knows it has a very easy way of writing iterators using <em>generators</em>, which allow writing suspendable and resumable code in a straight-line manner:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-python" data-lang="python"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">def</span> <span style="color:#900;font-weight:bold">get_squares</span>(<span style="color:#0086b3">max</span>):
+</span></span><span style="display:flex;"><span>    i <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">while</span> i <span style="color:#000;font-weight:bold">&lt;</span> <span style="color:#0086b3">max</span>:
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">yield</span> i<span style="color:#000;font-weight:bold">*</span>i
+</span></span><span style="display:flex;"><span>        i <span style="color:#000;font-weight:bold">+=</span> i
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#000;font-weight:bold">def</span> <span style="color:#900;font-weight:bold">main</span>():
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">for</span> square <span style="color:#000;font-weight:bold">in</span> get_squares(<span style="color:#099">5</span>):
+</span></span><span style="display:flex;"><span>        <span style="color:#0086b3">print</span>(square)
+</span></span></code></pre></div><p>Anyone who writes C++ knows writing iterators is complicated and annoying, so what if we used coroutines to allow us to write code like above?</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span>Generator <span style="color:#900;font-weight:bold">get_squares</span>(<span style="color:#458;font-weight:bold">int</span> max) {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">for</span> (<span style="color:#458;font-weight:bold">int</span> i <span style="color:#000;font-weight:bold">=</span> <span style="color:#099">0</span>; i <span style="color:#000;font-weight:bold">&lt;</span> max; i<span style="color:#000;font-weight:bold">++</span>) {
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">co_yield</span> i<span style="color:#000;font-weight:bold">*</span>i;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">for</span> (<span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">square</span> : get_squares(<span style="color:#099">5</span>)) {
+</span></span><span style="display:flex;"><span>        std<span style="color:#000;font-weight:bold">::</span>cout <span style="color:#000;font-weight:bold">&lt;&lt;</span> square <span style="color:#000;font-weight:bold">&lt;&lt;</span> std<span style="color:#000;font-weight:bold">::</span>endl;
+</span></span><span style="display:flex;"><span>    }
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>This is not only possible, it&rsquo;s quite easy if you read through the explanation above! Let&rsquo;s start by defining our return type and promise type.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Generator</span> {
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">promise_type</span> {
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">int</span> value;
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">bool</span> finished;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        Generator <span style="color:#900;font-weight:bold">get_return_object</span>() {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> { std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">&lt;</span>promise_type<span style="color:#000;font-weight:bold">&gt;::</span>from_promise(<span style="color:#000;font-weight:bold">*</span><span style="color:#000;font-weight:bold">this</span>) };
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        std<span style="color:#000;font-weight:bold">::</span>suspend_never initial_suspend() { <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>        std<span style="color:#000;font-weight:bold">::</span>suspend_never final_suspend() <span style="color:#000;font-weight:bold">noexcept</span> { <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">unhandled_exception</span>() {}
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        std<span style="color:#000;font-weight:bold">::</span>suspend_always yield_value(<span style="color:#458;font-weight:bold">int</span> val) { value <span style="color:#000;font-weight:bold">=</span> val; <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">void</span> <span style="color:#900;font-weight:bold">return_void</span>() { finished <span style="color:#000;font-weight:bold">=</span> <span style="color:#0086b3">true</span>; }
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    std<span style="color:#000;font-weight:bold">::</span>coroutine_handle<span style="color:#000;font-weight:bold">&lt;</span>promise_type<span style="color:#000;font-weight:bold">&gt;</span> handle;
+</span></span><span style="display:flex;"><span>    ...
+</span></span></code></pre></div><p>Just like above, we store the handle in the return type, and we store any yielded values in the promise type. Here we also store a boolean indicating if the coroutine is finished. Next, let&rsquo;s define our iterator.</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Generator</span> {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Sentinel</span> {};
+</span></span><span style="display:flex;"><span>    <span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Iterator</span> {
+</span></span><span style="display:flex;"><span>        Generator <span style="color:#000;font-weight:bold">&amp;</span>g;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#458;font-weight:bold">int</span> <span style="color:#000;font-weight:bold">operator</span><span style="color:#000;font-weight:bold">*</span>() <span style="color:#000;font-weight:bold">const</span> {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> g.handle.promise().value;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        Iterator<span style="color:#000;font-weight:bold">&amp;</span> <span style="color:#000;font-weight:bold">operator</span><span style="color:#000;font-weight:bold">++</span>() {
+</span></span><span style="display:flex;"><span>            g.handle.resume();
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">*</span><span style="color:#000;font-weight:bold">this</span>;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">friend</span> <span style="color:#458;font-weight:bold">bool</span> <span style="color:#000;font-weight:bold">operator</span><span style="color:#000;font-weight:bold">==</span>(<span style="color:#000;font-weight:bold">const</span> Iterator <span style="color:#000;font-weight:bold">&amp;</span>it, Sentinel) {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> it.g.handle.promise().finished;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>        <span style="color:#000;font-weight:bold">friend</span> <span style="color:#458;font-weight:bold">bool</span> <span style="color:#000;font-weight:bold">operator</span><span style="color:#000;font-weight:bold">!=</span>(<span style="color:#000;font-weight:bold">const</span> Iterator <span style="color:#000;font-weight:bold">&amp;</span>it, Sentinel) {
+</span></span><span style="display:flex;"><span>            <span style="color:#000;font-weight:bold">return</span> <span style="color:#000;font-weight:bold">!</span>it.g.handle.promise().finished;
+</span></span><span style="display:flex;"><span>        }
+</span></span><span style="display:flex;"><span>    };
+</span></span><span style="display:flex;"><span>    ...
+</span></span></code></pre></div><p>The dereference operation just returns the last value yielded from the coroutine, and the <code>++</code> operator resumes the coroutine. The <code>==</code> and <code>!=</code> operators check if the iterator is at the end by checking the <code>.finished</code> flag in the promise.</p>
+<p>Finally, we can write our <code>.begin()</code> and <code>.end()</code> to make <code>Generator</code> iterable:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-C++" data-lang="C++"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">struct</span> <span style="color:#458;font-weight:bold">Generator</span> {
+</span></span><span style="display:flex;"><span>    ...
+</span></span><span style="display:flex;"><span>    
+</span></span><span style="display:flex;"><span>    Iterator begin() { <span style="color:#000;font-weight:bold">return</span> { <span style="color:#000;font-weight:bold">*</span><span style="color:#000;font-weight:bold">this</span> }; }
+</span></span><span style="display:flex;"><span>    Sentinel <span style="color:#900;font-weight:bold">end</span>() { <span style="color:#000;font-weight:bold">return</span> {}; }
+</span></span><span style="display:flex;"><span>};
+</span></span></code></pre></div><p>And that&rsquo;s it! Python-style generators in about 50 lines of code.</p>
+<p><a href="https://godbolt.org/z/8obsThhde">Try the code here</a></p>
+<hr>
+<div class="nextprev"><a href="/articles/qctf/"><div class="nextart">&gt;&gt;&gt; next<br>QCTF experience and write-up</div></a>
+</div>
+</main>
+<footer>
+	<a href="https://nmilo.net/">home</a><br><br>
+	<a href="/index.xml"><img src="/rss.svg" style="max-height:1.5em" alt="RSS Feed" title="Subscribe via RSS for updates."></a>
+</footer>
+</body>
+</html>
+

