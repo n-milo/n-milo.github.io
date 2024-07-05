@@ -2,33 +2,33 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   <url>
-    <loc>https://nmilo.net/</loc>
+    <loc>https://nmilo.ca/</loc>
     <lastmod>2024-07-04T14:37:25-04:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/articles/</loc>
+    <loc>https://nmilo.ca/articles/</loc>
     <lastmod>2023-12-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/tags/c/</loc>
+    <loc>https://nmilo.ca/tags/c/</loc>
     <lastmod>2023-12-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/articles/overloading/</loc>
+    <loc>https://nmilo.ca/articles/overloading/</loc>
     <lastmod>2023-12-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/tags/programming/</loc>
+    <loc>https://nmilo.ca/tags/programming/</loc>
     <lastmod>2023-12-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/tags/</loc>
+    <loc>https://nmilo.ca/tags/</loc>
     <lastmod>2023-12-28T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/articles/qctf/</loc>
+    <loc>https://nmilo.ca/articles/qctf/</loc>
     <lastmod>2023-01-22T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/tags/c&#43;&#43;/</loc>
+    <loc>https://nmilo.ca/tags/c&#43;&#43;/</loc>
     <lastmod>2022-05-12T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/articles/coroutines/</loc>
+    <loc>https://nmilo.ca/articles/coroutines/</loc>
     <lastmod>2022-05-12T00:00:00+00:00</lastmod>
   </url><url>
-    <loc>https://nmilo.net/categories/</loc>
+    <loc>https://nmilo.ca/categories/</loc>
   </url>
 </urlset>
